@@ -1,0 +1,35 @@
+---
+title: "drugs_preprocess"
+output: pdf_document
+date: "2024-02-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r load data}
+# load data
+drugs <- read.csv("HeritageHealth/HHP_release3/DrugCount.csv", na.strings = "")
+head(drugs)
+# copy dataset for processing
+df.drugs <- drugs
+```
+
+```{r merge by year}
+df.drugs$DrugCount <- as.numeric(df.drugs$DrugCount)
+df.drugs <- df.drugs %>% group_by(MemberID, Year) %>% mutate(DrugCountSum = sum(DrugCount, na.rm = T))
+df.drugs <- df.drugs %>% group_by(MemberID, Year) %>% mutate(DrugCountMonthSum = n_distinct(DSFS, na.rm = T))
+```
+
+```{r cleaning}
+# remove useless columns
+df.drugs <- df.drugs %>% select(!c(DSFS, DrugCount))
+# remove duplicate rows
+df.drugs <- df.drugs %>% distinct(MemberID, Year, .keep_all = T)
+```
+
+```{r save processed data}
+write.csv(df.drugs, "Drugs_processed.csv")
+```

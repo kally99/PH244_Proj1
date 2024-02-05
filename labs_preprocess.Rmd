@@ -1,0 +1,40 @@
+---
+title: "labs_preprocess"
+output: pdf_document
+date: "2024-02-05"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r load data}
+# load data
+labs <- read.csv("HeritageHealth/HHP_release3/LabCount.csv", na.strings = "")
+head(labs)
+# copy dataset for processing
+df.labs <- labs
+```
+
+```{r LabCount}
+# Transform LabCount into numeric values
+df.labs[which(df.labs$LabCount == "10+"), "LabCount"] <- 10
+df.labs$LabCount <- as.numeric(df.labs$LabCount)
+```
+
+```{r merge by year}
+df.labs <- df.labs %>% group_by(MemberID, Year) %>% mutate(LabCountSum = sum(LabCount, na.rm = T))
+df.labs <- df.labs %>% group_by(MemberID, Year) %>% mutate(LabCountMonthSum = n_distinct(DSFS, na.rm = T))
+```
+
+```{r cleaning}
+# remove useless columns
+df.labs <- df.labs %>% select(!c(DSFS, LabCount))
+# remove duplicate rows
+df.labs <- df.labs %>% distinct(MemberID, Year, .keep_all = T)
+```
+
+```{r save processed dataset}
+write.csv(df.labs, "Labs_processed.csv")
+```

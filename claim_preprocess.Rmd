@@ -1,0 +1,190 @@
+---
+title: "claim_preprocess"
+output: pdf_document
+date: "2024-01-31"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r load data}
+# load data
+claim <- read.csv("HeritageHealth/HHP_release3/Claims.csv", na.strings = "")
+head(claim)
+# copy dataset for processing
+df.claim <- claim
+```
+
+```{r PayDelay}
+# PayDelay
+# change 162+ into 162
+df.claim[which(df.claim$PayDelay == "162+"), "PayDelay"] <- 162
+df.claim$PayDelay <- as.numeric(df.claim$PayDelay)
+```
+
+```{r LengthOfStay}
+# LengthOfStay
+# transform into days
+df.claim[which(df.claim$LengthOfStay == "1 day"), "LengthOfStay"] <- 1
+df.claim[which(df.claim$LengthOfStay == "2 days"), "LengthOfStay"] <- 2
+df.claim[which(df.claim$LengthOfStay == "3 days"), "LengthOfStay"] <- 3
+df.claim[which(df.claim$LengthOfStay == "4 days"), "LengthOfStay"] <- 4
+df.claim[which(df.claim$LengthOfStay == "5 days"), "LengthOfStay"] <- 5
+df.claim[which(df.claim$LengthOfStay == "6 days"), "LengthOfStay"] <- 6
+df.claim[which(df.claim$LengthOfStay == "1- 2 weeks"), "LengthOfStay"] <- 10.5
+df.claim[which(df.claim$LengthOfStay == "2- 4 weeks"), "LengthOfStay"] <- 21
+df.claim[which(df.claim$LengthOfStay == "4- 8 weeks"), "LengthOfStay"] <- 42
+df.claim[which(df.claim$LengthOfStay == "26+ weeks"), "LengthOfStay"] <- 182
+
+df.claim$LengthOfStay <- as.numeric(df.claim$LengthOfStay)
+```
+
+
+
+```{r DSFS}
+# DFPS
+# transform into months in numeric
+df.claim[which(df.claim$DSFS == "0- 1 month"), "DSFS"] <- 0.5
+df.claim[which(df.claim$DSFS == "1- 2 months"), "DSFS"] <- 1.5
+df.claim[which(df.claim$DSFS == "2- 3 months"), "DSFS"] <- 2.5
+df.claim[which(df.claim$DSFS == "3- 4 months"), "DSFS"] <- 3.5
+df.claim[which(df.claim$DSFS == "4- 5 months"), "DSFS"] <- 4.5
+df.claim[which(df.claim$DSFS == "5- 6 months"), "DSFS"] <- 5.5
+df.claim[which(df.claim$DSFS == "6- 7 months"), "DSFS"] <- 6.5
+df.claim[which(df.claim$DSFS == "7- 8 months"), "DSFS"] <- 7.5
+df.claim[which(df.claim$DSFS == "8- 9 months"), "DSFS"] <- 8.5
+df.claim[which(df.claim$DSFS == "9- 10 months"|df.claim$DSFS == "9-10 months"), "DSFS"] <- 9.5
+df.claim[which(df.claim$DSFS == "10- 11 months"|df.claim$DSFS == "10-11 months"), "DSFS"] <- 10.5
+df.claim[which(df.claim$DSFS == "11- 12 months"|df.claim$DSFS == "11-12 months"), "DSFS"] <- 11.5
+
+df.claim$DSFS <- as.numeric(df.claim$DSFS)
+```
+
+```{r CharlsonIndex}
+# CharlsonIndex
+# transform to numeric
+df.claim[which(df.claim$CharlsonIndex == "1-2"), "CharlsonIndex"] <- 1.5
+df.claim[which(df.claim$CharlsonIndex == "3-4"), "CharlsonIndex"] <- 3.5
+df.claim[which(df.claim$CharlsonIndex == "5+"), "CharlsonIndex"] <- 5
+
+df.claim$CharlsonIndex <- as.numeric(df.claim$CharlsonIndex)
+```
+
+```{r merge by Year}
+# noProvidor
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(noProvider = n_distinct(ProviderID))
+# no Vendor
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(noVendor = n_distinct(Vendor))
+# no PCP
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(noPCP = n_distinct(PCP))
+# Speciality
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(spSurgery = sum(Specialty == "Surgery", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(spInternal = sum(Specialty == "Internal", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(spLab = sum(Specialty == "Laboratory", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(spPed = sum(Specialty == "Pediatrics", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(spRehab = sum(Specialty == "Rehabilitation", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(spImag = sum(Specialty == "Diagnostic Imaging", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(spAnes= sum(Specialty == "Anesthesiology", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(spEmergency= sum(Specialty == "Emergency", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(spGeneral= sum(Specialty == "General Practice", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(spOther= sum(Specialty == "Other", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(spGeneral= sum(Specialty == "General Practice", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(spObs= sum(Specialty == "Obstetrics and Gynecology", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(spPathology= sum(Specialty == "Pathology", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(spNA= sum(is.na(Specialty), na.rm = T))
+# PlaceSvc
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(placeOffice = sum(PlaceSvc == "Office", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(placeLab = sum(PlaceSvc == "Independent Lab", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(placeOut = sum(PlaceSvc == "Outpatient Hospital", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(placeIn = sum(PlaceSvc == "Inpatient Hospital", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(placeUrgent = sum(PlaceSvc == "Urgent Care", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(placeAmbulance = sum(PlaceSvc == "Ambulance", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(placeHome = sum(PlaceSvc == "Home", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(placeOther = sum(PlaceSvc == "Other", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(placeNA = sum(is.na(PlaceSvc), na.rm = T))
+# PayDelay
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(PayDelaySum = sum(PayDelay, na.rm = T))
+# LengthOfStay
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(LengthOfStaySum = sum(LengthOfStay, na.rm = T))
+# PrimaryConditionGroup
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgNEUMENT = sum(PrimaryConditionGroup == "NEUMENT", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgMETAB3 = sum(PrimaryConditionGroup == "METAB3", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgFXDISLC = sum(PrimaryConditionGroup == "FXDISLC", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgTRAUMA = sum(PrimaryConditionGroup == "TRAUMA", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgRESPR4 = sum(PrimaryConditionGroup == "RESPR4", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgINFEC4 = sum(PrimaryConditionGroup == "INFEC4", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgMISCHRT = sum(PrimaryConditionGroup == "MISCHRT", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgARTHSPIN = sum(PrimaryConditionGroup == "ARTHSPIN", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgROAMI = sum(PrimaryConditionGroup == "ROAMI", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgHEART2 = sum(PrimaryConditionGroup == "HEART2", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgMSC2a3 = sum(PrimaryConditionGroup == "MSC2a3", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgPNEUM = sum(PrimaryConditionGroup == "PNEUM", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgMISCL5 = sum(PrimaryConditionGroup == "MISCL5", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgGIOBSENT = sum(PrimaryConditionGroup == "GIOBSENT", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgRENAL3 = sum(PrimaryConditionGroup == "RENAL3", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgGYNEC1 = sum(PrimaryConditionGroup == "GYNEC1", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgAMI = sum(PrimaryConditionGroup == "AMI", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgUTI = sum(PrimaryConditionGroup == "UTI", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgCOPD = sum(PrimaryConditionGroup == "COPD", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgGIBLEED = sum(PrimaryConditionGroup == "GIBLEED", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgHIPFX = sum(PrimaryConditionGroup == "HIPFX", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgSKNAUT = sum(PrimaryConditionGroup == "SKNAUT", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgCANCRB = sum(PrimaryConditionGroup == "CANCRB", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgSEIZURE = sum(PrimaryConditionGroup == "SEIZURE", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgCHF = sum(PrimaryConditionGroup == "CHF", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgPRGNCY = sum(PrimaryConditionGroup == "PRGNCY", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgMETAB1 = sum(PrimaryConditionGroup == "METAB1", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgHEART4 = sum(PrimaryConditionGroup == "HEART4", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgODaBNCA = sum(PrimaryConditionGroup == "ODaBNCA", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgHEMTOL = sum(PrimaryConditionGroup == "HEMTOL", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgGYNECA = sum(PrimaryConditionGroup == "GYNECA", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgAPPCHOL = sum(PrimaryConditionGroup == "APPCHOL", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgMISCL1 = sum(PrimaryConditionGroup == "MISCL1", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgRENAL2 = sum(PrimaryConditionGroup == "RENAL2", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgSTROKE = sum(PrimaryConditionGroup == "STROKE", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgPERVALV = sum(PrimaryConditionGroup == "PERVALV", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgCANCRA = sum(PrimaryConditionGroup == "CANCRA", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgCATAST = sum(PrimaryConditionGroup == "CATAST", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgFLaELEC = sum(PrimaryConditionGroup == "FLaELEC", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgSEPSIS = sum(PrimaryConditionGroup == "SEPSIS", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgLIVERDZ = sum(PrimaryConditionGroup == "LIVERDZ", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgPNCRDZ = sum(PrimaryConditionGroup == "PNCRDZ", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgRENAL1 = sum(PrimaryConditionGroup == "RENAL1", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgCANCRM = sum(PrimaryConditionGroup == "CANCRM", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgPERINTL = sum(PrimaryConditionGroup == "PERINTL", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pcgNA = sum(is.na(PrimaryConditionGroup), na.rm = T))
+# CharlsonIndex
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(CharlsonIndexMean = mean(CharlsonIndex, na.rm = T))
+# ProcedureGroup
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgMED = sum(ProcedureGroup == "MED", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgEM = sum(ProcedureGroup == "EM", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgSCS = sum(ProcedureGroup == "SCS", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgRAD = sum(ProcedureGroup == "RAD", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgANES = sum(ProcedureGroup == "ANES", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgSDS = sum(ProcedureGroup == "SDS", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgPL = sum(ProcedureGroup == "PL", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgSIS = sum(ProcedureGroup == "SIS", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgSMS = sum(ProcedureGroup == "SMS", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgSGS = sum(ProcedureGroup == "SGS", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgSEOA = sum(ProcedureGroup == "SEOA", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgSNS = sum(ProcedureGroup == "SNS", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgSAS = sum(ProcedureGroup == "SAS", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgSRS = sum(ProcedureGroup == "SRS", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgSUS = sum(ProcedureGroup == "SUS", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgSO = sum(ProcedureGroup == "SO", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgSMCD = sum(ProcedureGroup == "SMCD", na.rm = T))
+df.claim <- df.claim %>% group_by(MemberID, Year) %>% mutate(pgNA = sum(is.na(ProcedureGroup), na.rm = T))
+```
+
+```{r cleaning}
+# remove useless columns
+df.claim <- df.claim %>% select(!c(ProviderID: PCP, Specialty: SupLOS))
+# remove duplicated info
+df.claim <- df.claim %>% distinct(MemberID, Year, .keep_all = T) 
+```
+
+```{r save processed data}
+write.csv(df.claim, "Claims_processed.csv")
+```
