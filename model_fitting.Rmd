@@ -1,0 +1,140 @@
+---
+title: "model_fitting"
+output: pdf_document
+date: "2024-02-14"
+---
+
+```{r load pkg}
+library(tidyverse)
+library(caret)
+library(glmnet)
+library(ggplot2)
+```
+
+```{r load data}
+df_new <- read.csv("new-data/new_data.csv")
+outcome_Y2 <- read.csv("DaysInHospital_Y2.csv")
+outcome_Y3 <- read.csv("DaysInHospital_Y3.csv")
+```
+
+```{r remove na}
+df_new <- df_new %>% filter(Sex != 0, AgeAtFirstClaim != "0")
+```
+
+```{r age processing}
+# change age to numeric
+df_new[which(df_new$AgeAtFirstClaim == "0-9"), "AgeAtFirstClaim"] <- 4.5
+df_new[which(df_new$AgeAtFirstClaim == "10-19"), "AgeAtFirstClaim"] <- 14.5
+df_new[which(df_new$AgeAtFirstClaim == "20-29"), "AgeAtFirstClaim"] <- 24.5
+df_new[which(df_new$AgeAtFirstClaim == "30-39"), "AgeAtFirstClaim"] <- 34.5
+df_new[which(df_new$AgeAtFirstClaim == "40-49"), "AgeAtFirstClaim"] <- 44.5
+df_new[which(df_new$AgeAtFirstClaim == "50-59"), "AgeAtFirstClaim"] <- 54.5
+df_new[which(df_new$AgeAtFirstClaim == "60-69"), "AgeAtFirstClaim"] <- 64.5
+df_new[which(df_new$AgeAtFirstClaim == "70-79"), "AgeAtFirstClaim"] <- 74.5
+df_new[which(df_new$AgeAtFirstClaim == "80+"), "AgeAtFirstClaim"] <- 80
+df_new$AgeAtFirstClaim <- as.numeric(df_new$AgeAtFirstClaim)
+```
+
+```{r create train test set}
+member_list_Y2 <- unique(outcome_Y2$MemberID)
+member_list_Y3 <- unique(outcome_Y3$MemberID)
+
+df_train <- data.frame(MemberID = member_list_Y2) # covariate from Y1, outcome from Y2
+df_train <- df_train %>% left_join(df_new %>% filter(Year == "Y1") %>% dplyr::select(-AgeAtFirstClaim, -Sex), by = c("MemberID"))
+df_train <- df_train %>% left_join(df_new %>% select(MemberID, AgeAtFirstClaim, Sex) %>% distinct(MemberID, .keep_all = T), by = c("MemberID"))
+df_train <- df_train %>% filter(!is.na(AgeAtFirstClaim), !is.na(Sex))
+df_train <- df_train %>% left_join(outcome_Y2 %>% select(MemberID, DaysInHospital), by = c("MemberID"))
+
+df_test <- data.frame(MemberID = member_list_Y3) # covariate from Y2, outcome from Y3
+df_test <- df_test %>% left_join(df_new %>% filter(Year == "Y2") %>% dplyr::select(-AgeAtFirstClaim, -Sex), by = c("MemberID"))
+df_test <- df_test %>% left_join(df_new %>% select(MemberID, AgeAtFirstClaim, Sex) %>% distinct(MemberID, .keep_all = T), by = c("MemberID"))
+df_test <- df_test %>% filter(!is.na(AgeAtFirstClaim), !is.na(Sex))
+df_test <- df_test %>% left_join(outcome_Y3 %>% select(MemberID, DaysInHospital), by = c("MemberID"))
+
+df_train <- df_train %>% select(-MemberID, -Year)
+df_test <- df_test %>% select(-MemberID, -Year)
+```
+
+```{r define evaluation function}
+evaluate <- function(y_true, y_pred){
+  n <- length(y_true)
+  sum <- 0
+  for (i in 1:n){
+    sum <- sum + (log(y_pred[i]+1) - log(y_true[i]+1))^2
+  }
+  return(sqrt(sum/n))
+}
+```
+
+```{r linear model}
+model_linear <- lm(data = df_train, DaysInHospital~.)
+pred_linear <- predict(model_linear, df_test)
+pred_linear[pred_linear<0] = 0
+evaluate(df_test$DaysInHospital, pred_linear)
+```
+```{r seed}
+set.seed(244)
+```
+
+```{r lasso cv}
+# do a 10 fold cross validation first
+folds <- createFolds(df_train$DaysInHospital, k = 10)
+lambda_list_lasso <- seq(from = 0.02, to = 0.3, by = 0.02)
+score_lasso <- matrix(nrow = 10, ncol = length(lambda_list_lasso))
+for (i in 1:10){
+  train <- df_train[-folds[[i]], ]
+  x_train <- model.matrix(DaysInHospital~., train)[,-99]
+  y_train <- train %>% select(DaysInHospital) %>% unlist() %>% as.numeric()
+  val <- df_train[folds[[i]], ]
+  x_val <- model.matrix(DaysInHospital~., val)[,-99]
+  for (j in 1:length(lambda_list_lasso)){
+    model_val <- glmnet(x = x_train, y = y_train,lambda = lambda_list_lasso[j], alpha = 1)
+    pred_val <- predict(model_val, x_val)
+    score_lasso[i, j] <- evaluate(val$DaysInHospital, pred_val)
+  }
+}
+score_lasso <- colMeans(score_lasso)
+```
+```{r lasso train test}
+# lambda = 0.1
+X <- model.matrix(DaysInHospital~., df_train)[,-99]
+y <- df_train %>% select(DaysInHospital) %>% unlist() %>% as.numeric()
+X_test <- model.matrix(DaysInHospital~., df_test)[,-99]
+model_lasso <- glmnet(x = X, y = y, alpha = 1, lambda = 0.1)
+pred_lasso <- predict(model_lasso, X_test)
+evaluate(df_test$DaysInHospital, pred_lasso)
+```
+
+```{r ridge}
+# do a 10 fold cross validation first
+folds <- createFolds(df_train$DaysInHospital, k = 10)
+lambda_list_ridge <- seq(from = 10, to = 12, by = 0.1)
+score_ridge <- matrix(nrow = 10, ncol = length(lambda_list_ridge))
+for (i in 1:10){
+  train <- df_train[-folds[[i]], ]
+  x_train <- model.matrix(DaysInHospital~., train)[,-99]
+  y_train <- train %>% select(DaysInHospital) %>% unlist() %>% as.numeric()
+  val <- df_train[folds[[i]], ]
+  x_val <- model.matrix(DaysInHospital~., val)[,-99]
+  for (j in 1:length(lambda_list_ridge)){
+    model_val <- glmnet(x = x_train, y = y_train,lambda = lambda_list_ridge[j], alpha = 0)
+    pred_val <- predict(model_val, x_val)
+    score_ridge[i, j] <- evaluate(val$DaysInHospital, pred_val)
+  }
+}
+score_ridge <- colMeans(score_ridge)
+```
+
+
+```{r ridge train test}
+# lambda = 11.1
+model_ridge <- glmnet(x = X, y = y, alpha = 0, lambda = 11.1)
+pred_ridge <- predict(model_ridge, X_test)
+evaluate(df_test$DaysInHospital, pred_ridge)
+```
+
+```{r plot}
+par(mfrow= c(1,2))
+plot(lambda_list_lasso, score_lasso, xlab = "Lambda", ylab="Score", main = "10-fold CV results of Lasso Regression")
+plot(lambda_list_ridge, score_ridge, xlab = "Lambda", ylab="Score", main = "10-fold CV results of Ridge Regression")
+```
